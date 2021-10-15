@@ -2,9 +2,10 @@ import express from "express";
 import { Server } from "socket.io"
 import Chat from "./types/Chat"
 import mongoose from "mongoose"
+import chunkArray from "./modules/chunkArray";
 
 const port = 9000;
-
+const pageSize = 25;
 const app = express();
 let roomIdMap: { roomId: number, socketId: string }[] = [];
 
@@ -14,6 +15,39 @@ app.get('/', (_, res) => {
   res.send("Hello, socket.io!")
 })
 
+interface chatReq {
+  roomId: number,
+  page: number
+}
+
+interface chatRes {
+  data: Chat[],
+  page: number,
+  totalPage: number,
+  totalChats: number
+}
+// roomId, page를 받아
+app.get('/chats', async (req: any, res) => {
+  try {
+    const room = await collection.findOne({ "_id": Number(req.query.roomId) });
+    const chats = room?.chats
+    console.log(req.query);
+    if (!room) res.status(404).send("ID not exist");
+
+    const chunkedArray = chunkArray(chats, pageSize);
+    if (chunkedArray.length <= req.query.page) {
+      res.status(400).send("Invalid page")
+    }
+    res.send({
+      data: chunkedArray[Number(req.query.page)],
+      page: req.query.page,
+      totalPage: chunkedArray.length,
+      totalChats: chats.length
+    });
+  } catch (e) {
+    console.error(e);
+  }
+})
 
 const server = app.listen(port, () => {
   console.log(`App listening at ${port} port`)
@@ -43,7 +77,6 @@ io.on('connection', (socket) => {
         result = await collection.findOne({ "_id": doc.insertedId });
       }
       socket.join(roomId);
-      console.log(result);
       socket.emit("joined", roomId, result?.chats);
       (<any>socket).activeRoom = roomId;
     } catch (e) {
