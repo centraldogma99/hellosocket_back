@@ -1,8 +1,11 @@
+// FIXME scrollLength 인자로 받아야 함
+
 import express from "express";
 import { Server } from "socket.io"
 import Chat from "./types/Chat"
 import mongoose from "mongoose"
 import chunkArray from "./modules/chunkArray";
+import cors from "cors";
 
 const port = 9000;
 const pageSize = 25;
@@ -14,6 +17,8 @@ let collection: mongoose.Collection;
 app.get('/', (_, res) => {
   res.send("Hello, socket.io!")
 })
+
+app.use(cors())
 
 interface chatReq {
   roomId: number,
@@ -31,7 +36,7 @@ app.get('/chats', async (req: any, res) => {
   try {
     const room = await collection.findOne({ "_id": Number(req.query.roomId) });
     const chats = room?.chats
-    console.log(req.query);
+    console.log("query : " + req.query);
     if (!room) res.status(404).send("ID not exist");
 
     const chunkedArray = chunkArray(chats, pageSize);
@@ -41,9 +46,25 @@ app.get('/chats', async (req: any, res) => {
     res.send({
       data: chunkedArray[Number(req.query.page)],
       page: req.query.page,
-      totalPage: chunkedArray.length,
-      totalChats: chats.length
+      totalPage: chunkedArray.length - 1,
+      totalChats: chats.length,
     });
+  } catch (e) {
+    console.error(e);
+  }
+})
+
+app.get('/chats/length', async (req, res) => {
+  try {
+    const room = await collection.findOne({ "_id": Number(req.query.roomId) });
+    if (!room) {
+      res.status(404).send("ID not exist");
+      return;
+    }
+
+    res.send({
+      length: room.chats.length
+    })
   } catch (e) {
     console.error(e);
   }
