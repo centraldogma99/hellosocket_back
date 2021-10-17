@@ -8,9 +8,7 @@ import chunkArray from "./modules/chunkArray";
 import cors from "cors";
 
 const port = 9000;
-const pageSize = 25;
 const app = express();
-let roomIdMap: { roomId: number, socketId: string }[] = [];
 
 let collection: mongoose.Collection;
 
@@ -22,7 +20,8 @@ app.use(cors())
 
 interface chatReq {
   roomId: number,
-  page: number
+  page: number,
+  pageSize?: number
 }
 
 interface chatRes {
@@ -34,12 +33,11 @@ interface chatRes {
 // roomId, page를 받아
 app.get('/chats', async (req: any, res) => {
   try {
-    const room = await collection.findOne({ "_id": Number(req.query.roomId) });
+    const room = await collection.findOne({ "_id": req.query.roomId });
     const chats = room?.chats
-    console.log("query : " + req.query);
     if (!room) res.status(404).send("ID not exist");
 
-    const chunkedArray = chunkArray(chats, pageSize);
+    const chunkedArray = chunkArray(chats, req.query.pageSize);
     if (chunkedArray.length <= req.query.page) {
       res.status(400).send("Invalid page")
     }
@@ -86,11 +84,7 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log("a user connected!");
-  // roomIdMap = roomIdMap.concat({
-  //   roomId: Number(socket.handshake.query.roomId),
-  //   socketId: socket.id
-  // })
-  socket.on('join', async (roomId) => {
+  socket.on('join', async (roomId, username) => {
     try {
       let result = await collection.findOne({ "_id": roomId })
       if (!result) {
@@ -98,7 +92,7 @@ io.on('connection', (socket) => {
         result = await collection.findOne({ "_id": doc.insertedId });
       }
       socket.join(roomId);
-      socket.emit("joined", roomId, result?.chats);
+      socket.emit("joined", roomId, username);
       (<any>socket).activeRoom = roomId;
     } catch (e) {
       console.error(e);
@@ -110,8 +104,6 @@ io.on('connection', (socket) => {
         "chats": chat
       }
     })
-    // const roomId = roomIdMap.filter(roomIdObj => roomIdObj.socketId == socket.id)[0].roomId;
-    // const socketIds = roomIdMap.filter(roomIdObj => roomIdObj.roomId == roomId).map(roomIdObj => roomIdObj.socketId);
     io.to((<any>socket).activeRoom).emit('chatEvent', chat)
   })
 })
