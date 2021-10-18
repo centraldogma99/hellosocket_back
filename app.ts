@@ -34,9 +34,9 @@ interface chatRes {
 app.get('/chats', async (req: any, res) => {
   try {
     const room = await collection.findOne({ "_id": req.query.roomId });
-    const chats = room?.chats
+    const chats = room?.chats;
     if (!room) res.status(404).send("ID not exist");
-
+    if (!chats) return;
     const chunkedArray = chunkArray(chats, req.query.pageSize);
     if (chunkedArray.length <= req.query.page) {
       res.status(400).send("Invalid page")
@@ -92,6 +92,7 @@ io.on('connection', (socket) => {
         result = await collection.findOne({ "_id": doc.insertedId });
       }
       socket.join(roomId);
+      (<any>socket).username = username;
       socket.emit("joined", roomId, username);
       (<any>socket).activeRoom = roomId;
     } catch (e) {
@@ -105,5 +106,23 @@ io.on('connection', (socket) => {
       }
     })
     io.to((<any>socket).activeRoom).emit('chatEvent', chat)
+  })
+  socket.on('disconnect', async (reason) => {
+    console.log('exit');
+    try {
+      let result = await collection.findOne({ "_id": (<any>socket).activeRoom })
+      if (!result) {
+        throw Error("No result matching the id")
+      }
+      const chat = { author: (<any>socket).username, text: "님이 퇴장했습니다.", time: new Date() }
+      collection.updateOne({ "_id": (<any>socket).activeRoom }, {
+        $push: {
+          "chats": chat
+        }
+      })
+      io.to((<any>socket).activeRoom).emit('chatEvent', chat)
+    } catch (e) {
+      console.error(e);
+    }
   })
 })
