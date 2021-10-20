@@ -1,78 +1,29 @@
 // FIXME scrollLength 인자로 받아야 함
 
 import express from "express";
-import { Server } from "socket.io"
-import Chat from "./types/Chat"
-import mongoose from "mongoose"
-import chunkArray from "./modules/chunkArray";
 import cors from "cors";
+import chatsRouter from "./routes/chats"
+import usersRouter from "./routes/users"
+import { Server } from "socket.io"
+import { chatRoomModel } from "./database/db"
+import Chat from "./types/Chat";
+import cookieParser from 'cookie-parser';
+require("dotenv").config();
 
 const port = 9000;
 const app = express();
 
-let collection: mongoose.Collection;
+app.use(cors());
+app.use(cookieParser());
+app.use('/chats', chatsRouter);
+app.use('/users', usersRouter);
 
 app.get('/', (_, res) => {
   res.send("Hello, socket.io!")
 })
 
-app.use(cors())
-
-interface chatReq {
-  roomId: number,
-  page: number,
-  pageSize?: number
-}
-
-interface chatRes {
-  data: Chat[],
-  page: number,
-  totalPage: number,
-  totalChats: number
-}
-// roomId, page를 받아
-app.get('/chats', async (req: any, res) => {
-  try {
-    const room = await collection.findOne({ "_id": req.query.roomId });
-    const chats = room?.chats;
-    if (!room) res.status(404).send("ID not exist");
-    if (!chats) return;
-    const chunkedArray = chunkArray(chats, req.query.pageSize);
-    if (chunkedArray.length <= req.query.page) {
-      res.status(400).send("Invalid page")
-    }
-    res.send({
-      data: chunkedArray[Number(req.query.page)],
-      page: req.query.page,
-      totalPage: chunkedArray.length - 1,
-      totalChats: chats.length,
-    });
-  } catch (e) {
-    console.error(e);
-  }
-})
-
-app.get('/chats/length', async (req, res) => {
-  try {
-    const room = await collection.findOne({ "_id": Number(req.query.roomId) });
-    if (!room) {
-      res.status(404).send("ID not exist");
-      return;
-    }
-
-    res.send({
-      length: room.chats.length
-    })
-  } catch (e) {
-    console.error(e);
-  }
-})
-
 const server = app.listen(port, () => {
   console.log(`App listening at ${port} port`)
-  mongoose.connect("mongodb://localhost:27017/chat");
-  const db = mongoose.connection;
-  collection = db.collection("chats")
 })
 
 const io = new Server(server, {
@@ -86,10 +37,9 @@ io.on('connection', (socket) => {
   console.log("a user connected!");
   socket.on('join', async (roomId, username) => {
     try {
-      let result = await collection.findOne({ "_id": roomId })
+      let result = await chatRoomModel.findOne({ "_id": roomId })
       if (!result) {
-        const doc = await collection.insertOne({ "_id": roomId, "chats": [] });
-        result = await collection.findOne({ "_id": doc.insertedId });
+        result = await chatRoomModel.create({ "_id": roomId, "chats": [], "isSecret": false });
       }
       socket.join(roomId);
       (<any>socket).username = username;
@@ -100,22 +50,23 @@ io.on('connection', (socket) => {
     }
   })
   socket.on('chatEvent', (chat: Chat) => {
-    collection.updateOne({ "_id": (<any>socket).activeRoom }, {
+    console.log('chatEvent');
+    chatRoomModel.updateOne({ "_id": (<any>socket).activeRoom }, {
       $push: {
         "chats": chat
       }
-    })
+    }).exec();
     io.to((<any>socket).activeRoom).emit('chatEvent', chat)
   })
   socket.on('disconnect', async (reason) => {
     console.log('exit');
     try {
-      let result = await collection.findOne({ "_id": (<any>socket).activeRoom })
+      let result = await chatRoomModel.findOne({ "_id": (<any>socket).activeRoom })
       if (!result) {
         throw Error("No result matching the id")
       }
       const chat = { author: (<any>socket).username, text: "님이 퇴장했습니다.", time: new Date() }
-      collection.updateOne({ "_id": (<any>socket).activeRoom }, {
+      chatRoomModel.updateOne({ "_id": (<any>socket).activeRoom }, {
         $push: {
           "chats": chat
         }
