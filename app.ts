@@ -6,9 +6,9 @@ import chatsRouter from "./routes/chats"
 import usersRouter from "./routes/users"
 import { Server } from "socket.io"
 import { chatRoomModel } from "./database/db"
-import Chat from "./types/Chat";
 import cookieParser from 'cookie-parser';
 import jwt from "jsonwebtoken"
+import Cookies from "js-cookie"
 require("dotenv").config();
 
 const port = 9000;
@@ -36,23 +36,25 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log("a user connected!");
+
   socket.on('join', async (roomId, credential) => {
     try {
       let result = await chatRoomModel.findOne({ "_id": roomId })
       if (!result) {
         result = await chatRoomModel.create({ "_id": roomId, "chats": [], "isSecret": false });
       }
-      socket.join(roomId);
       const decoded = jwt.verify(credential, process.env.TOKEN_KEY);
-      (<any>socket).username = (decoded as any).email;
+      (<any>socket).username = (decoded as any).name;
+      socket.join(roomId);
       socket.emit("joined", roomId, (<any>socket).username);
       (<any>socket).activeRoom = roomId;
     } catch (e) {
       console.error(e);
     }
   })
-  socket.on('chatEvent', (chat: Chat) => {
+  socket.on('chatEvent', (chat: { text: string, time: Date }) => {
     console.log('chatEvent');
+    (chat as any).author = (<any>socket).username;
     chatRoomModel.updateOne({ "_id": (<any>socket).activeRoom }, {
       $push: {
         "chats": chat

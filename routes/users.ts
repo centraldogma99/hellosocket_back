@@ -55,7 +55,7 @@ router.post('/login', bodyParser.json(), async (req, res) => {
     return res.status(401).send("invalid credentials");
 
   const token = jwt.sign(
-    { user_id: user._id, email },
+    { user_id: user._id, email, name: user.name },
     process.env.TOKEN_KEY as jwt.Secret,
     {
       expiresIn: "1h"
@@ -63,7 +63,12 @@ router.post('/login', bodyParser.json(), async (req, res) => {
   )
   // user.token = token;
 
-  res.status(200).cookie('credential', token, { maxAge: 3600000, httpOnly: true }).json(user);
+  res.status(200).cookie('credential', token, { maxAge: 3600000 }).json(user);
+})
+
+router.get('/logout', (req, res) => {
+  console.log("logout")
+  return res.status(200).clearCookie("credential", { path: '/' }).send("successful");
 })
 
 router.get('/test', auth, (req, res) => {
