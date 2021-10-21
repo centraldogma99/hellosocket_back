@@ -48,6 +48,7 @@ router.post('/login', bodyParser.json(), async (req, res) => {
   if (!email || !password) return res.status(400).send("bad request")
 
   const user = await userModel.findOne({ email });
+  console.log(user);
   if (!user) return res.status(404).send("no such user, you should register");
 
   if (!await bcrypt.compare(password, user.password))
@@ -57,12 +58,12 @@ router.post('/login', bodyParser.json(), async (req, res) => {
     { user_id: user._id, email },
     process.env.TOKEN_KEY as jwt.Secret,
     {
-      expiresIn: "2h"
+      expiresIn: "1h"
     }
   )
   // user.token = token;
 
-  res.status(200).append('Set-Cookie', 'credential=' + token + ';; HttpOnly').json(user);
+  res.status(200).cookie('credential', token, { maxAge: 3600000, httpOnly: true }).json(user);
 })
 
 router.get('/test', auth, (req, res) => {

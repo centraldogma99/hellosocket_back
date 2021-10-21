@@ -8,12 +8,13 @@ import { Server } from "socket.io"
 import { chatRoomModel } from "./database/db"
 import Chat from "./types/Chat";
 import cookieParser from 'cookie-parser';
+import jwt from "jsonwebtoken"
 require("dotenv").config();
 
 const port = 9000;
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 app.use(cookieParser());
 app.use('/chats', chatsRouter);
 app.use('/users', usersRouter);
@@ -35,15 +36,16 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log("a user connected!");
-  socket.on('join', async (roomId, username) => {
+  socket.on('join', async (roomId, credential) => {
     try {
       let result = await chatRoomModel.findOne({ "_id": roomId })
       if (!result) {
         result = await chatRoomModel.create({ "_id": roomId, "chats": [], "isSecret": false });
       }
       socket.join(roomId);
-      (<any>socket).username = username;
-      socket.emit("joined", roomId, username);
+      const decoded = jwt.verify(credential, process.env.TOKEN_KEY);
+      (<any>socket).username = (decoded as any).email;
+      socket.emit("joined", roomId, (<any>socket).username);
       (<any>socket).activeRoom = roomId;
     } catch (e) {
       console.error(e);
