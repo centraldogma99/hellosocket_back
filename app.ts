@@ -65,10 +65,6 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async (reason) => {
     console.log('exit');
     try {
-      let result = await chatRoomModel.findOne({ "_id": (<any>socket).activeRoom })
-      if (!result) {
-        throw Error("No result matching the id")
-      }
       const chat = { author: (<any>socket).username, text: "님이 퇴장했습니다.", time: new Date() }
       chatRoomModel.updateOne({ "_id": (<any>socket).activeRoom }, {
         $push: {

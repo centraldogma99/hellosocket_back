@@ -18,7 +18,7 @@ router.post('/register', bodyParser.json(), async (req, res) => {
     if (!name || !email || !password) return res.status(400).send("bad request");
 
     const oldUser = await userModel.findOne({ email });
-    if (oldUser) return res.status(409).send("already exist");
+    if (oldUser) return res.status(409).send("email already registered");
 
     const encrypted = await bcrypt.hash(password, 10);
 
