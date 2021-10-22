@@ -14,7 +14,7 @@ require("dotenv").config();
 const port = 9000;
 const app = express();
 
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:5000'], credentials: true }));
 app.use(cookieParser());
 app.use('/chats', chatsRouter);
 app.use('/users', usersRouter);
@@ -29,7 +29,7 @@ const server = app.listen(port, () => {
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "http://localhost:5000"],
     methods: ["GET", "POST"]
   }
 });
@@ -66,11 +66,12 @@ io.on('connection', (socket) => {
     console.log('exit');
     try {
       const chat = { author: (<any>socket).username, text: "님이 퇴장했습니다.", time: new Date() }
-      chatRoomModel.updateOne({ "_id": (<any>socket).activeRoom }, {
+      const res = await chatRoomModel.updateOne({ "_id": (<any>socket).activeRoom }, {
         $push: {
           "chats": chat
         }
       })
+      console.log(res);
       io.to((<any>socket).activeRoom).emit('chatEvent', chat)
     } catch (e) {
       console.error(e);

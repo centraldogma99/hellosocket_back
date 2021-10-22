@@ -5,6 +5,7 @@
     "module": "CommonJS",
     "sourceMap": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "outDir": "./built",
   }
 }
